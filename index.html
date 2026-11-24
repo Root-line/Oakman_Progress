@@ -718,10 +718,8 @@
               <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-2">
                 <h2 className="text-base font-bold text-white">Reference Prints</h2>
                 <p className="text-sm text-slate-300">Oakman Table Print · Flower Rooms 1–13 and Veg Room</p>
-                {isUnlocked
-                  ? <a className="inline-block text-sm text-emerald-300 underline" target="_blank" rel="noopener noreferrer"
-                      href="https://chatgpt.com/library?file_id=libfile_68d252da20dc819186d67f5dba6fe5fb&amp;account_id=33e886dc-1898-4de9-bf8b-b5540d194911">Open original PDF in ChatGPT</a>
-                  : <button onClick={() => setShowPassModal(true)} className="text-sm text-emerald-300 underline">Sign in to view reference prints</button>}
+                <a className="inline-block text-sm text-emerald-300 underline" target="_blank" rel="noopener noreferrer"
+                   href="./reference/oakman-table-print.pdf">Open PDF in browser</a>
               </section>
             )}
           </main>
