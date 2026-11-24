@@ -610,6 +610,7 @@
                 { id: "communications", label: "2. Communications" },
                 { id: "security", label: "3. Perimeter Security & External" },
                 { id: "license", label: "4. License Activity" },
+                { id: "contractors", label: "5. Contractors" },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -688,6 +689,17 @@
                 onAddInspection={addInspection}
                 onDeleteInspection={deleteInspection}
               />
+            )}
+
+            {activeTab === "contractors" && (
+              isUnlocked
+                ? <ContractorsView />
+                : <section className="rounded-xl border border-slate-800 bg-slate-900 p-5">
+                    <h2 className="text-base font-bold text-white">Oakman Contractors</h2>
+                    <button onClick={() => setShowPassModal(true)} className="mt-2 text-sm text-emerald-300 underline">
+                      Sign in to view contractor contacts
+                    </button>
+                  </section>
             )}
           </main>
 
@@ -807,6 +819,74 @@
     }
 
     // --- TAB 1: Overview & Master Gantt Chart ---
+    function ContractorsView() {
+      const [contacts, setContacts] = useState(null);
+      const [failed, setFailed] = useState(false);
+      const [attempt, setAttempt] = useState(0);
+
+      useEffect(() => {
+        const controller = new AbortController();
+        const loadContacts = async () => {
+          const { data, error } = await scheduleClient.from("oakman_contractor_contacts")
+            .select("position, category, name, organization, phones, email, notes")
+            .order("position").abortSignal(controller.signal);
+          if (controller.signal.aborted) return;
+          setFailed(Boolean(error));
+          if (!error) setContacts(data);
+        };
+        void loadContacts();
+        return () => controller.abort();
+      }, [attempt]);
+
+      return (
+        <section aria-labelledby="contractors-heading" className="space-y-5">
+          <div>
+            <h2 id="contractors-heading" className="text-lg font-bold text-white">Oakman Contractors</h2>
+            <p className="mt-1 text-sm text-slate-400">4505 Oakman</p>
+          </div>
+          {failed ? (
+            <div role="status" className="text-sm text-rose-300">
+              Could not load contractor contacts.
+              <button className="ml-2 text-emerald-300 underline" onClick={() => { setFailed(false); setAttempt(attempt + 1); }}>Retry</button>
+            </div>
+          ) : !contacts ? (
+            <p role="status" className="text-sm text-slate-400">Loading contractor contacts…</p>
+          ) : contacts.length === 0 ? (
+            <p className="text-sm text-slate-400">No contractor contacts available.</p>
+          ) : (
+            <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {Object.entries(Object.groupBy(contacts, (contact) => contact.category)).map(([category, entries]) => (
+                <section key={category} className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/60">
+                  <h3 className="border-b border-slate-800 px-4 py-3 text-sm font-semibold text-emerald-300">{category}</h3>
+                  <ul className="divide-y divide-slate-800">
+                    {entries.map((contact) => (
+                      <li key={contact.position} className="space-y-2 p-4">
+                        <div>
+                          <h4 className="text-sm font-semibold text-white">{contact.name}</h4>
+                          {contact.organization && <p className="text-xs text-slate-400">{contact.organization}</p>}
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          {contact.phones.map(({ number, label }) => (
+                            <div key={number}>
+                              {label && <span className="mr-2 text-xs text-slate-400">{label}</span>}
+                              <a className="text-emerald-300 hover:underline" href={"tel:+1" + number.replace(/\D/g, "")}>{number}</a>
+                            </div>
+                          ))}
+                          {contact.phones.length === 0 && <p className="text-xs text-slate-400">No phone number on file</p>}
+                          {contact.email && <a className="block break-all text-emerald-300 hover:underline" href={"mailto:" + contact.email}>{contact.email}</a>}
+                        </div>
+                        {contact.notes && <p className="text-xs leading-relaxed text-slate-300">{contact.notes}</p>}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          )}
+        </section>
+      );
+    }
+
     function OverviewView({ data, kpis, ganttFilter, setGanttFilter, expandedTracks, setExpandedTracks, onSelectEvent, onJumpTab }) {
       const visibleTracks = useMemo(() => {
         if (ganttFilter === "all") return TRACKS;
