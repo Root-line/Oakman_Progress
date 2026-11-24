@@ -90,8 +90,8 @@
       { id: "ops_equipment", pillar: "operations", label: "Existing Room Equipment Certification", color: "#f59e0b", badge: "bg-amber-500/15 text-amber-300 border-amber-500/30" },
       { id: "ops_pressure", pillar: "operations", label: "CO₂ / Positive Pressure", color: "#14b8a6", badge: "bg-teal-500/15 text-teal-300 border-teal-500/30" },
       { id: "comms", pillar: "communications", label: "Low Voltage", color: "#8b5cf6", badge: "bg-violet-500/15 text-violet-300 border-violet-500/30" },
-      { id: "security", pillar: "security", label: "Perimeter / Interior Security", color: "#3b82f6", badge: "bg-blue-500/15 text-blue-300 border-blue-500/30" },
-      { id: "external", pillar: "security", label: "External Upgrades", color: "#ec4899", badge: "bg-pink-500/15 text-pink-300 border-pink-500/30" },
+      { id: "security", pillar: "operations", label: "Perimeter / Interior Security", color: "#3b82f6", badge: "bg-blue-500/15 text-blue-300 border-blue-500/30" },
+      { id: "external", pillar: "operations", label: "External Upgrades", color: "#ec4899", badge: "bg-pink-500/15 text-pink-300 border-pink-500/30" },
       { id: "license", pillar: "license", label: "License Activity (CRA/BFS)", color: "#ef4444", badge: "bg-red-500/15 text-red-300 border-red-500/30" },
     ];
 
@@ -117,6 +117,7 @@
     };
 
     const isDone = (status) => status === "Complete" || status === "Approved";
+    const openPrerequisites = (dependencies) => dependencies.filter((dependency) => dependency && !isDone(dependency.status));
 
     const calcDays = (start, end) => {
       if (!start || !end) return 0;
@@ -620,10 +621,9 @@
                 { id: "overview", label: "Overview & Gantt" },
                 { id: "operations", label: "1. Operations" },
                 { id: "communications", label: "2. Low Voltage" },
-                { id: "security", label: "3. Perimeter / Interior Security & External" },
-                { id: "license", label: "4. License Activity" },
-                { id: "contractors", label: "5. Contractors" },
-                { id: "reference", label: "6. Reference Prints" },
+                { id: "license", label: "3. License Activity" },
+                { id: "contractors", label: "4. Contractors" },
+                { id: "reference", label: "5. Reference Prints" },
               ].map((tab) => (
                 <button
                   key={tab.id}
@@ -684,13 +684,6 @@
                 onAddDoorFault={addDoorFault}
                 onCycleDoorFaultStatus={cycleDoorFaultStatus}
                 onDeleteDoorFault={deleteDoorFault}
-              />
-            )}
-
-            {activeTab === "security" && (
-              <SecurityExternalView
-                data={data}
-                onSelectEvent={setSelectedEventId}
               />
             )}
 
@@ -1027,8 +1020,7 @@
                 {[
                   { id: "all", label: "All Pillars" },
                   { id: "operations", label: "Operations" },
-                  { id: "communications", label: "Comms" },
-                  { id: "security", label: "Security/Ext" },
+                  { id: "communications", label: "Low Voltage" },
                   { id: "license", label: "License" },
                 ].map((f) => (
                   <button
@@ -1230,8 +1222,15 @@
       statusFilter, setStatusFilter, equipActionFilter, setEquipActionFilter,
       onSelectEvent, onToggleRoomCheck, onUpdateRoomMeta
     }) {
-      const trackMap = { buildout: "ops_buildout", fertigation: "ops_fertigation", equipment: "ops_equipment", pressure: "ops_pressure" };
-      const currentTrack = trackMap[opsSubTab];
+      const sections = [
+        { id: "buildout", track: "ops_buildout" },
+        { id: "fertigation", track: "ops_fertigation" },
+        { id: "equipment", track: "ops_equipment" },
+        { id: "pressure", track: "ops_pressure" },
+        { id: "security", track: "security" },
+        { id: "external", track: "external" },
+      ];
+      const currentTrack = sections.find((section) => section.id === opsSubTab)?.track;
 
       const filteredEvents = useMemo(() => {
         return data.events.filter((ev) => {
@@ -1265,20 +1264,16 @@
           {/* Sub-Tab Selector */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="inline-flex flex-wrap bg-[#111827] border border-slate-800 rounded-xl p-1 gap-1">
-              {[
-                { id: "buildout", label: "Building Five-Room Expansion" },
-                { id: "fertigation", label: "Fertigation Replacement" },
-                { id: "equipment", label: "Existing Room Equipment Certification" },
-                { id: "pressure", label: "CO₂ / Positive Pressure" },
-              ].map((s) => (
+              {sections.map((s) => (
                 <button
                   key={s.id}
                   onClick={() => setOpsSubTab(s.id)}
+                  aria-pressed={opsSubTab === s.id}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
                     opsSubTab === s.id ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-slate-200"
                   }`}
                 >
-                  {s.label}
+                  {TRACKS.find((track) => track.id === s.track)?.label}
                 </button>
               ))}
             </div>
@@ -1423,7 +1418,7 @@
           )}
 
           {/* Event Cards Grid */}
-          <EventCardGrid events={filteredEvents} onSelectEvent={onSelectEvent} />
+          <EventCardGrid events={filteredEvents} allEvents={data.events} onSelectEvent={onSelectEvent} />
         </div>
       );
     }
@@ -1458,7 +1453,7 @@
             <h2 className="text-sm font-bold text-white flex items-center gap-2 mb-3">
               <Icons.Wifi className="w-4 h-4 text-violet-400" /> Low Voltage
             </h2>
-            <EventCardGrid events={commsEvents} onSelectEvent={onSelectEvent} />
+            <EventCardGrid events={commsEvents} allEvents={data.events} onSelectEvent={onSelectEvent} />
           </div>
 
           {/* Door Operation & Faults Log */}
@@ -1552,48 +1547,6 @@
       );
     }
 
-    // --- TAB 4: Perimeter Security & External Upgrades ---
-    function SecurityExternalView({ data, onSelectEvent }) {
-      const secEvents = data.events.filter((e) => e.track === "security");
-      const extEvents = data.events.filter((e) => e.track === "external");
-
-      return (
-        <div className="space-y-6">
-          <div>
-            <h2 className="text-sm font-bold text-white flex items-center gap-2 mb-3">
-              <Icons.Shield className="w-4 h-4 text-blue-400" /> Perimeter / Interior Security
-            </h2>
-            <EventCardGrid events={secEvents} onSelectEvent={onSelectEvent} />
-          </div>
-
-          <div className="pt-2 border-t border-slate-800">
-            <h2 className="text-sm font-bold text-white flex items-center gap-2 mb-3">
-              <Icons.Calendar className="w-4 h-4 text-pink-400" /> External Upgrades & Mini-Timeline
-            </h2>
-            <div className="bg-[#111827] border border-slate-800 rounded-xl p-4 mb-4 space-y-2.5">
-              {extEvents.map((ev) => (
-                <div
-                  key={ev.id}
-                  onClick={() => onSelectEvent(ev.id)}
-                  className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-lg bg-slate-900/80 hover:bg-slate-800 cursor-pointer border border-slate-800"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-pink-400" />
-                    <span className="text-xs font-semibold text-white">{ev.title}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs">
-                    <span className="text-slate-400">{eventTiming(ev)}</span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded border ${STATUS_COLORS[ev.status]?.pill || ""}`}>{ev.status}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <EventCardGrid events={extEvents} onSelectEvent={onSelectEvent} />
-          </div>
-        </div>
-      );
-    }
-
     // --- TAB 5: License Activity (CRA & BFS Fire Only) ---
     function LicenseActivityView({ data, isUnlocked, onSelectEvent, onAddInspection, onDeleteInspection }) {
       const licEvents = data.events.filter((e) => e.track === "license");
@@ -1646,7 +1599,7 @@
             <h2 className="text-sm font-bold text-white flex items-center gap-2 mb-3">
               <Icons.Flame className="w-4 h-4 text-rose-400" /> CRA & Bureau of Fire Services (BFS) Milestones
             </h2>
-            <EventCardGrid events={licEvents} onSelectEvent={onSelectEvent} />
+            <EventCardGrid events={licEvents} allEvents={data.events} onSelectEvent={onSelectEvent} />
           </div>
 
           {/* BFS / CRA Inspection Attempt Logger */}
@@ -1709,46 +1662,57 @@
     }
 
     // --- Shared Event Card Grid ---
-    function EventCardGrid({ events, onSelectEvent }) {
+    function EventCardGrid({ events, allEvents, onSelectEvent }) {
+      const eventsById = new Map(allEvents.map((event) => [event.id, event]));
       if (events.length === 0) {
         return <div className="bg-[#111827] border border-slate-800 rounded-xl p-8 text-center text-xs text-slate-500">No events match your current filter.</div>;
       }
       return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {events.map((ev) => (
-            <div
-              key={ev.id}
-              onClick={() => onSelectEvent(ev.id)}
-              className="bg-[#111827] hover:bg-slate-800/60 border border-slate-800 hover:border-slate-700 rounded-xl p-4 cursor-pointer transition flex flex-col justify-between gap-3"
-            >
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 truncate">
-                    {ev.subGroup || ev.area}
-                  </span>
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${STATUS_COLORS[ev.status]?.pill || ""}`}>
-                    {ev.status}
-                  </span>
-                </div>
-                <h3 className="text-sm font-bold text-white leading-snug">{ev.title}</h3>
-                {ev.summary && <p className="text-xs text-slate-300">{ev.summary}</p>}
-                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                  {ev.actionType && (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${EQUIP_BADGES[ev.actionType] || ""}`}>
-                      {ev.actionType}
+          {events.map((ev) => {
+            const blockers = ev.status === "Blocked"
+              ? openPrerequisites((ev.dependsOn || []).map((id) => eventsById.get(id)))
+              : [];
+            return (
+              <div
+                key={ev.id}
+                onClick={() => onSelectEvent(ev.id)}
+                className="bg-[#111827] hover:bg-slate-800/60 border border-slate-800 hover:border-slate-700 rounded-xl p-4 cursor-pointer transition flex flex-col justify-between gap-3"
+              >
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 truncate">
+                      {ev.subGroup || ev.area}
                     </span>
+                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border shrink-0 ${STATUS_COLORS[ev.status]?.pill || ""}`}>
+                      {ev.status}
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-bold text-white leading-snug">{ev.title}</h3>
+                  {blockers.length > 0 && (
+                    <p className="text-xs text-rose-300">
+                      <strong>Blocked by</strong> {blockers.map((blocker) => blocker.title).join(", ")}
+                    </p>
                   )}
-                  <span className="text-[11px] text-slate-400">{ev.area}</span>
-                  {ev.owner && <span className="text-[11px] text-slate-500">• {ev.owner}</span>}
+                  {ev.summary && <p className="text-xs text-slate-300">{ev.summary}</p>}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    {ev.actionType && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${EQUIP_BADGES[ev.actionType] || ""}`}>
+                        {ev.actionType}
+                      </span>
+                    )}
+                    <span className="text-[11px] text-slate-400">{ev.area}</span>
+                    {ev.owner && <span className="text-[11px] text-slate-500">• {ev.owner}</span>}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                  <span>{eventTiming(ev)}</span>
+                  <span>{ev.optional ? "Optional" : ev.checklist ? `${ev.checklist.filter((item) => item.done).length}/${ev.checklist.length} checks` : ""}</span>
                 </div>
               </div>
-
-              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
-                <span>{eventTiming(ev)}</span>
-                <span>{ev.optional ? "Optional" : ev.checklist ? `${ev.checklist.filter((item) => item.done).length}/${ev.checklist.length} checks` : ""}</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       );
     }
@@ -1756,6 +1720,8 @@
     // --- Event Detail Drawer ---
     function EventDetailDrawer({ event, dependencies, isUnlocked, onClose, onUpdate, onAddNote, onDelete, onRequestUnlock }) {
       const [noteText, setNoteText] = useState("");
+      const blockers = event.status === "Blocked" ? openPrerequisites(dependencies) : [];
+      const securityHandoff = event.track === "security" ? dependencies.find((dependency) => dependency.id === "walkthrough") : null;
 
       return (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end">
@@ -1781,6 +1747,19 @@
               </div>
             )}
 
+            {blockers.length > 0 && (
+              <section className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 space-y-1 text-sm text-rose-200">
+                <h3 className="font-semibold">Blocked by</h3>
+                <ul className="list-disc pl-5">
+                  {blockers.map((blocker) => <li key={blocker.id}>{blocker.title}</li>)}
+                </ul>
+                {securityHandoff && (
+                  <p>The first security check starts the day the walkthrough is complete. Planned handoff{" "}
+                    <strong>{fmtDate(securityHandoff.endDate)}</strong>.
+                  </p>
+                )}
+              </section>
+            )}
             {event.summary && <p className="text-sm text-slate-300">{event.summary}</p>}
             {dependencies.length > 0 && (
               <section className="space-y-1 text-xs text-slate-300">
@@ -2067,4 +2046,3 @@
   </script>
 </body>
 </html>
-
